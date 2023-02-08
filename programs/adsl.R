@@ -16,23 +16,23 @@ library(haven)
 # as needed and assign to the variables below.
 # For illustration purposes read in admiral test data
 
-#data("admiral_dm")
-#data("admiral_ds")
-#data("admiral_ex")
-#data("admiral_ae")
-#data("admiral_lb")
-
-dm = read_xpt("./sdtm/dm.xpt")
-ds = read_xpt("./sdtm/ds.xpt")
-ex = read_xpt("./sdtm/ds.xpt")
-ae = read_xpt("./sdtm/ae.xpt")
-lb = read_xpt("./sdtm/lb.xpt")
+data("admiral_dm")
+data("admiral_ds")
+data("admiral_ex")
+data("admiral_ae")
+data("admiral_lb")
 
 dm <- admiral_dm
 ds <- admiral_ds
 ex <- admiral_ex
 ae <- admiral_ae
 lb <- admiral_lb
+
+#dm = read_xpt("./sdtm/dm.xpt")
+#ds = read_xpt("./sdtm/ds.xpt")
+#ex = read_xpt("./sdtm/ds.xpt")
+#ae = read_xpt("./sdtm/ae.xpt")
+#lb = read_xpt("./sdtm/lb.xpt")
 
 # When SAS datasets are imported into R using haven::read_sas(), missing
 # character values from SAS appear as "" characters in R, instead of appearing
@@ -274,6 +274,6 @@ adsl <- adsl %>%
 # Save output ----
 
 #dir <- tempdir() # Change to whichever directory you want to save the dataset in
-dir <- tempdir("./programs")
 #saveRDS(adsl, file = file.path(dir, "adsl.rds"), compress = "bzip2")
-saveRDS(adsl, file = "adsl.rds")
+adsl <- adsl %>%
+  xportr_write("adsl.xpt", label = "Subject-Level Analysis Dataset")
