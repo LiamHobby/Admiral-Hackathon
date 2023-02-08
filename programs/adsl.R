@@ -8,6 +8,7 @@ library(admiral.test) # Contains example datasets from the CDISC pilot project
 library(dplyr)
 library(lubridate)
 library(stringr)
+library(haven)
 
 # Load source datasets ----
 
@@ -15,11 +16,17 @@ library(stringr)
 # as needed and assign to the variables below.
 # For illustration purposes read in admiral test data
 
-data("admiral_dm")
-data("admiral_ds")
-data("admiral_ex")
-data("admiral_ae")
-data("admiral_lb")
+#data("admiral_dm")
+#data("admiral_ds")
+#data("admiral_ex")
+#data("admiral_ae")
+#data("admiral_lb")
+
+dm = read_xpt("./sdtm/dm.xpt")
+ds = read_xpt("./sdtm/ds.xpt")
+ex = read_xpt("./sdtm/ds.xpt")
+ae = read_xpt("./sdtm/ae.xpt")
+lb = read_xpt("./sdtm/lb.xpt")
 
 dm <- admiral_dm
 ds <- admiral_ds
@@ -266,6 +273,7 @@ adsl <- adsl %>%
 
 # Save output ----
 
-dir <- tempdir() # Change to whichever directory you want to save the dataset in
-saveRDS(adsl, file = file.path(dir, "adsl.rds"), compress = "bzip2")
-
+#dir <- tempdir() # Change to whichever directory you want to save the dataset in
+dir <- tempdir("./programs")
+#saveRDS(adsl, file = file.path(dir, "adsl.rds"), compress = "bzip2")
+saveRDS(adsl, file = "adsl.rds")
