@@ -15,18 +15,6 @@ library(haven)
 # as needed and assign to the variables below.
 # For illustration purposes read in admiral test data
 
-#data("admiral_dm")
-#data("admiral_ds")
-#data("admiral_ex")
-#data("admiral_ae")
-#data("admiral_lb")
-
-#dm <- admiral_dm
-#ds <- admiral_ds
-#ex <- admiral_ex
-#ae <- admiral_ae
-#lb <- admiral_lb
-
 dm = read_xpt("./sdtm/dm.xpt")
 ds = read_xpt("./sdtm/ds.xpt")
 ex = read_xpt("./sdtm/ds.xpt")
@@ -150,6 +138,9 @@ format_eoxxstt <- function(x) {
     TRUE ~ "ONGOING"
   )
 }
+
+adsl <- dm %>%
+  select(STUDYID, USUBJID, SUBJID, SITEID, ARM, AGE, AGEU, RACE, SEX, ETHNIC, DTHFL, RFSTDTC, RFENDTC)
 
 adsl <- adsl %>%
   xportr_write("./adam/adsl2.xpt", label = "Subject-Level Analysis Dataset")
