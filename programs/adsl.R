@@ -20,6 +20,10 @@ ds = read_xpt("./sdtm/ds.xpt")
 ex = read_xpt("./sdtm/ds.xpt")
 ae = read_xpt("./sdtm/ae.xpt")
 lb = read_xpt("./sdtm/lb.xpt")
+sv = read_xpt("./sdtm/sv.xpt")
+mh = read_xpt("./sdtm/mh.xpt")
+sc = read_xpt("./sdtm/sc.xpt")
+qs = read_xpt("./sdtm/qs.xpt")
 
 #Loading supplementary data sets
 
@@ -89,6 +93,10 @@ ds <- convert_blanks_to_na(ds)
 ex <- convert_blanks_to_na(ex)
 ae <- convert_blanks_to_na(ae)
 lb <- convert_blanks_to_na(lb)
+sv <- convert_blanks_to_na(sv)
+mh <- convert_blanks_to_na(mh)
+sc <- convert_blanks_to_na(sc)
+qs <- convert_blanks_to_na(qs)
 
 # User defined functions ----
 
@@ -139,8 +147,55 @@ format_eoxxstt <- function(x) {
   )
 }
 
+# Extracting relevant dm variables
+
 adsl <- dm %>%
   select(STUDYID, USUBJID, SUBJID, SITEID, ARM, AGE, AGEU, RACE, SEX, ETHNIC, DTHFL, RFSTDTC, RFENDTC)
+
+# Deriving TRT01P
+
+adsl <- adsl %>%
+  mutate(TRT01P = ARM)
+
+# Deriving DSDECOD from ds
+
+adsl <- adsl %>%
+  derive_vars_merged(
+    dataset_add = ds,
+    filter_add = (DSCAT == "DISPOSITION EVENT"),
+    new_vars = vars(DSDECOD),
+    order = vars(DSDECOD),
+    mode = "first",
+    by_vars = vars(STUDYID, USUBJID)
+  )
+
+# Deriving VISNUMEN from ds
+
+ds <- ds %>%
+  mutate(VISNUMEN = case_when(VISITNUM == 13 & DSTERM == "PROTOCOL COMPLETED" ~ 12,
+                              DSTERM == "PROTOCOL COMPLETED" ~ VISITNUM))
+
+adsl <- adsl %>%
+  derive_vars_merged(
+    dataset_add = ds,
+    filter_add = (DSTERM == "PROTOCOL COMPLETED"),
+    new_vars = vars(VISNUMEN),
+    order = vars(VISNUMEN),
+    mode = "first",
+    by_vars = vars(STUDYID, USUBJID)
+  )
+
+# Deriving TRTEDT from ex
+
+adsl <- adsl %>%
+  derive_vars_merged(
+    dataset_add = ex,
+    filter_add = (DSDECOD == "FINAL LAB VISIT"),
+    new_vars = vars(TRTEDT = DSSTDTC),
+    order = vars(DSSTDTC),
+    mode = "first",
+    by_vars = vars(STUDYID, USUBJID)
+  )
 
 adsl <- adsl %>%
   xportr_write("./adam/adsl2.xpt", label = "Subject-Level Analysis Dataset")
