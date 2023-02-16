@@ -18,8 +18,6 @@ library(haven)
 dm = read_xpt("./sdtm/dm.xpt")
 ds = read_xpt("./sdtm/ds.xpt")
 ex = read_xpt("./sdtm/ds.xpt")
-ae = read_xpt("./sdtm/ae.xpt")
-lb = read_xpt("./sdtm/lb.xpt")
 sv = read_xpt("./sdtm/sv.xpt")
 mh = read_xpt("./sdtm/mh.xpt")
 sc = read_xpt("./sdtm/sc.xpt")
@@ -29,8 +27,6 @@ qs = read_xpt("./sdtm/qs.xpt")
 
 suppdm = read_xpt("./sdtm/suppdm.xpt")
 suppds = read_xpt("./sdtm/suppdm.xpt")
-suppae = read_xpt("./sdtm/suppdm.xpt")
-supplb = read_xpt("./sdtm/supplb.xpt")
 
 #Merging supplementary data sets with the source data sets.
 
@@ -47,6 +43,9 @@ dm <- dm %>%
   )
 
 suppds <- suppds %>%
+  mutate(RDOMAIN = "DS")
+
+suppds <- suppds %>%
   rename_at('RDOMAIN', ~'DOMAIN')
 
 ds <- ds %>%
@@ -58,31 +57,6 @@ ds <- ds %>%
     by_vars = vars(STUDYID, DOMAIN, USUBJID)
   )
 
-suppae <- suppae %>%
-  rename_at('RDOMAIN', ~'DOMAIN')
-
-ae <- ae %>%
-  derive_vars_merged(
-    dataset_add = suppae,
-    new_vars = vars(QNAM, QLABEL, QVAL, QORIG, QEVAL),
-    order = vars(QNAM, QLABEL, QVAL, QORIG, QEVAL),
-    mode = 'first',
-    by_vars = vars(STUDYID, DOMAIN, USUBJID)
-  )
-
-supplb <- supplb %>%
-  rename_at('RDOMAIN', ~'DOMAIN')
-
-lb <- lb %>%
-  derive_vars_merged(
-    dataset_add = supplb,
-    new_vars = vars(QNAM, QLABEL, QVAL, QORIG, QEVAL),
-    order = vars(QNAM, QLABEL, QVAL, QORIG, QEVAL),
-    mode = 'first',
-    by_vars = vars(STUDYID, DOMAIN, USUBJID)
-  )
-
-
 # When SAS datasets are imported into R using haven::read_sas(), missing
 # character values from SAS appear as "" characters in R, instead of appearing
 # as NA values. Further details can be obtained via the following link:
@@ -91,61 +65,10 @@ lb <- lb %>%
 dm <- convert_blanks_to_na(dm)
 ds <- convert_blanks_to_na(ds)
 ex <- convert_blanks_to_na(ex)
-ae <- convert_blanks_to_na(ae)
-lb <- convert_blanks_to_na(lb)
 sv <- convert_blanks_to_na(sv)
 mh <- convert_blanks_to_na(mh)
 sc <- convert_blanks_to_na(sc)
 qs <- convert_blanks_to_na(qs)
-
-# User defined functions ----
-
-# Here are some examples of how you can create your own functions that
-#  operates on vectors, which can be used in `mutate`.
-
-# Grouping
-format_racegr1 <- function(x) {
-  case_when(
-    x == "WHITE" ~ "White",
-    x != "WHITE" ~ "Non-white",
-    TRUE ~ "Missing"
-  )
-}
-
-format_agegr1 <- function(x) {
-  case_when(
-    x < 18 ~ "<18",
-    between(x, 18, 64) ~ "18-64",
-    x > 64 ~ ">64",
-    TRUE ~ "Missing"
-  )
-}
-
-format_region1 <- function(x) {
-  case_when(
-    x %in% c("CAN", "USA") ~ "NA",
-    !is.na(x) ~ "RoW",
-    TRUE ~ "Missing"
-  )
-}
-
-format_lddthgr1 <- function(x) {
-  case_when(
-    x <= 30 ~ "<= 30",
-    x > 30 ~ "> 30",
-    TRUE ~ NA_character_
-  )
-}
-
-# EOSSTT mapping
-format_eoxxstt <- function(x) {
-  case_when(
-    x %in% c("COMPLETED") ~ "COMPLETED",
-    !(x %in% c("COMPLETED", "SCREEN FAILURE")) & !is.na(x) ~ "DISCONTINUED",
-    x %in% c("SCREEN FAILURE") ~ NA_character_,
-    TRUE ~ "ONGOING"
-  )
-}
 
 # Extracting relevant dm variables
 
@@ -196,6 +119,21 @@ adsl <- adsl %>%
     mode = "first",
     by_vars = vars(STUDYID, USUBJID)
   )
+
+# Converting TRTEDT to SAS Date Format
+
+adsl <- adsl %>%
+  mutate(TRTEDT = format(as.Date(TRTEDT), "%d-%b-%Y"))
+
+sv <- sv %>%
+  mutate(COMP16FL = case_when(VISITNUM == 10 & VISITDY >= 70 ~ 'Y',
+                              TRUE ~ 'N'),
+         COMP24FL = case_when(VISITNUM == 12 & VISITDY >= 84 ~ 'Y',
+                              TRUE ~ 'N'),
+         COMP8FL = case_when(VISITNUM == 8 & VISITDY >= 56 ~ 'Y',
+                             TRUE ~ 'N'),
+         TRTSDT = case_when(VISITNUM == 3 ~ 'SVSTDTC'),
+         VISIT1DT = case_when(VISITNUM == 1 ~ 'SVSTDTC'))
 
 adsl <- adsl %>%
   xportr_write("./adam/adsl2.xpt", label = "Subject-Level Analysis Dataset")
