@@ -125,6 +125,8 @@ adsl <- adsl %>%
 adsl <- adsl %>%
   mutate(TRTEDT = format(as.Date(TRTEDT), "%d-%b-%Y"))
 
+# Creating sv variables to add to the adsl
+
 sv <- sv %>%
   mutate(COMP16FL = case_when(VISITNUM == 10 & VISITDY >= 70 ~ 'Y',
                               TRUE ~ 'N'),
@@ -132,8 +134,168 @@ sv <- sv %>%
                               TRUE ~ 'N'),
          COMP8FL = case_when(VISITNUM == 8 & VISITDY >= 56 ~ 'Y',
                              TRUE ~ 'N'),
-         TRTSDT = case_when(VISITNUM == 3 ~ 'SVSTDTC'),
-         VISIT1DT = case_when(VISITNUM == 1 ~ 'SVSTDTC'))
+         TRTSDT = case_when(VISITNUM == 3 ~ SVSTDTC),
+         VISIT1DT = case_when(VISITNUM == 1 ~ SVSTDTC))
+
+# Extracting relevant sv variables
+
+sv <- sv %>%
+  select(USUBJID, COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT)
+
+# Initializing columns to add to the adsl
+
+USUBJID = vector("character", 0)
+COMP16FL = vector("character", 0)
+COMP24FL = vector("character", 0)
+COMP8FL = vector("character", 0)
+TRTSDT = vector("character", 0)
+VISIT1DT = vector("character", 0)
+
+# The Boolean flags ensure that no more than 1 record is added for a subject
+
+COMP16FL_b = FALSE
+COMP24FL_b = FALSE
+COMP8FL_b = FALSE
+TRTSDT_b = FALSE
+VISIT1DT_b = FALSE
+
+# This nested loop goes through every element in the sv data set and extract relevant data
+# i is row and j is column
+
+for(i in 1:nrow(sv))
+{
+  for(j in 1:ncol(sv))
+  {
+    if(i == 1 & j == 1)
+    {
+      subject = sv[i, j]
+      USUBJID <- c(subject)
+
+      COMP16FL_b = FALSE
+      COMP24FL_b = FALSE
+      COMP8FL_b = FALSE
+      TRTSDT_b = FALSE
+      VISIT1DT_b = FALSE
+    }
+
+    if(j == 1 & sv[i, j] != subject)
+    {
+      if(COMP16FL_b == FALSE)
+      {
+        COMP16FL <- c(COMP16FL, 'N')
+      }
+
+      if(COMP24FL_b == FALSE)
+      {
+        COMP24FL <- c(COMP24FL, 'N')
+      }
+
+      if(COMP8FL_b == FALSE)
+      {
+        COMP8FL <- c(COMP8FL, 'N')
+      }
+
+      if(TRTSDT_b == FALSE)
+      {
+        TRTSDT <- c(TRTSDT, NA)
+      }
+
+      if(VISIT1DT_b == FALSE)
+      {
+        VISIT1DT <- c(VISIT1DT, NA)
+      }
+
+      subject = sv[i, j]
+      USUBJID = c(USUBJID, subject)
+
+      COMP16FL_b = FALSE
+      COMP24FL_b = FALSE
+      COMP8FL_b = FALSE
+      TRTSDT_b = FALSE
+      VISIT1DT_b = FALSE
+    }
+
+    if(sv[i, 2] == 'Y' & COMP16FL_b == FALSE)
+    {
+      COMP16FL <- c(COMP16FL, 'Y')
+      COMP16FL_b = TRUE
+    }
+
+    if(sv[i, 3] == 'Y' & COMP24FL_b == FALSE)
+    {
+      COMP24FL <- c(COMP24FL, 'Y')
+      COMP24FL_b = TRUE
+    }
+
+    if(sv[i, 4] == 'Y' & COMP8FL_b == FALSE)
+    {
+      COMP8FL <- c(COMP8FL, 'Y')
+      COMP8FL_b = TRUE
+    }
+
+    if(is.na(sv[i, 5]) == FALSE & TRTSDT_b == FALSE)
+    {
+      TRTSDT <- c(TRTSDT, sv[i, 5])
+      TRTSDT_b = TRUE
+    }
+
+    if(is.na(sv[i, 6]) == FALSE & VISIT1DT_b == FALSE)
+    {
+      VISIT1DT = c(VISIT1DT, sv[i, 6])
+      VISIT1DT_b = TRUE
+    }
+  }
+}
+
+if(COMP16FL_b == FALSE)
+{
+  COMP16FL <- c(COMP16FL, 'N')
+}
+
+if(COMP24FL_b == FALSE)
+{
+  COMP24FL <- c(COMP24FL, 'N')
+}
+
+if(COMP8FL_b == FALSE)
+{
+  COMP8FL <- c(COMP8FL, 'N')
+}
+
+if(TRTSDT_b == FALSE)
+{
+  TRTSDT <- c(TRTSDT, NA)
+}
+
+if(VISIT1DT_b == FALSE)
+{
+  VISIT1DT <- c(VISIT1DT, NA)
+}
+
+# Converting lists in to characters because the adsl columns are characters
+
+USUBJID <- paste(USUBJID)
+TRTSDT <- paste(TRTSDT)
+VISIT1DT <-paste(VISIT1DT)
+
+# Creating the data set to merge with the adsl
+
+sv_adsl <- cbind(USUBJID, COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT)
+
+adsl <- adsl %>%
+  derive_vars_merged(
+    dataset_add = as.data.frame(sv_adsl),
+    new_vars = vars(COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT),
+    order = vars(COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT),
+    mode = 'first',
+    by_vars = vars(USUBJID)
+  )
+
+# Formatting the newly added date variables
+
+adsl <- adsl %>%
+  mutate(TRTSDT = format(as.Date(TRTSDT), "%d-%b-%Y"),
+         VISIT1DT = format(as.Date(VISIT1DT), "%d-%b-%Y"))
 
 adsl <- adsl %>%
   xportr_write("./adam/adsl2.xpt", label = "Subject-Level Analysis Dataset")
