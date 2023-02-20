@@ -341,9 +341,6 @@ adsl <- adsl %>%
 qs <- qs %>%
   select(USUBJID, QSORRES, QSCAT)
 
-qs <- qs %>%
-  mutate(QSORRES = as.integer(QSORRES))
-
 USUBJID = vector("character", 0)
 MMSETOT = vector("integer", 0)
 n_MMSETOT = 0
@@ -358,7 +355,7 @@ for(i in 1:nrow(qs))
 
   if(qs[i, 3] == "MINI-MENTAL STATE")
   {
-    n_MMSETOT = n_MMSETOT + qs[i, 2]
+    n_MMSETOT = n_MMSETOT + as.integer(qs[i, 2])
   }
 
   if(qs[i, 1] != subject)
