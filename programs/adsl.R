@@ -418,12 +418,26 @@ adsl <- adsl %>%
 adsl <- adsl %>%
   derive_vars_merged(
     dataset_add = sv,
-    filter_add = (VISITNUM == 13),
+    filter_add = (VISITNUM == 12),
     new_vars = vars(VISIT12DT = SVSTDTC),
     order = vars(SVSTDTC),
     mode = 'first',
     by_vars = vars(STUDYID, USUBJID)
   )
+
+adsl <- adsl %>%
+  mutate(VISIT1DT = as.Date(VISIT1DT),
+         DISONSDT = as.Date(DISONSDT))
+
+adsl$DURDIS <- compute_duration(
+  adsl$DISONSDT,
+  adsl$VISIT1DT,
+  in_unit = "days",
+  out_unit = "months",
+  floor_in = TRUE,
+  add_one = TRUE,
+  trunc_out = FALSE
+)
 
 adsl <- adsl %>%
   mutate(AGEGR1N = case_when(AGE < 65 ~ 1,
@@ -443,11 +457,11 @@ adsl <- adsl %>%
                             DCDECOD != "COMPLETED" ~ "DISCONTINUED"),
          CUMDOSE = case_when(ARMN == 0 ~ 0,
                              ARMN == 1 ~ TRT01PN * TRTDURD,
-                             ARMN == 2 ~ case_when(VISNUMEN > 3 & VISNUMEN <= 4 ~ case_when(EOSSTT == "COMPLETED" ~ as.numeric(54 * (difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1),
-                                                                                            EOSSTT == "DISCONTINUED" ~ as.numeric(54 * (difftime(as.Date(TRTEDT), as.Date(TRTSDT), units = "days")) + 1)),
-                                                   VISNUMEN > 4 & VISNUMEN <= 12 ~ case_when(EOSSTT == "COMPLETED" ~ as.numeric(81 * (difftime(as.Date(VISIT12DT), as.Date(VISIT4DT), units = "days"))),
-                                                                                             EOSSTT == "DISCONTINUED" ~ as.numeric(81 * (difftime(as.Date(TRTEDT), as.Date(VISIT4DT), units = "days")))),
-                                                   VISNUMEN > 12 ~ 54 * as.numeric(difftime(as.Date(TRTEDT), as.Date(VISIT12DT), units = "days")))),
+                             ARMN == 2 ~ case_when(VISNUMEN > 3 & VISNUMEN <= 4 ~ case_when(EOSSTT == "COMPLETED" ~ 54 * as.numeric((difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1),
+                                                                                            EOSSTT == "DISCONTINUED" ~ 54 * as.numeric((difftime(as.Date(TRTEDT), as.Date(TRTSDT), units = "days")) + 1)),
+                                                   VISNUMEN > 4 & VISNUMEN <= 12 ~ case_when(EOSSTT == "COMPLETED" ~ (54 * as.numeric((difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1)) + (81 * as.numeric((difftime(as.Date(VISIT12DT), as.Date(VISIT4DT), units = "days")))) + (54 * as.numeric(difftime(as.Date(TRTEDT), as.Date(VISIT12DT), units = "days"))),
+                                                                                             EOSSTT == "DISCONTINUED" ~ 54 * as.numeric((difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1) + 81 * as.numeric((difftime(as.Date(TRTEDT), as.Date(VISIT4DT), units = "days")))),
+                                                   VISNUMEN > 12 ~ 54 * as.numeric((difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1) + 81 * as.numeric((difftime(as.Date(VISIT12DT), as.Date(VISIT4DT), units = "days"))) + 54 * as.numeric(difftime(as.Date(TRTEDT), as.Date(VISIT12DT), units = "days")))),
          AVGDD = CUMDOSE / TRTDURD,
          BMIBL = WEIGHTBL / ((HEIGHTBL / 100) ^ 2),
          BMIBLGR1 = case_when(BMIBL < 25 ~ "<25",
@@ -455,7 +469,6 @@ adsl <- adsl %>%
                               BMIBL >= 30 ~ ">=30"),
          DISCONFL = case_when(DCREASCD == "PROTOCOL COMPLETED" ~ 'Y'),
          DSRAEFL = case_when(DCREASCD == "ADVERSE EVENT" ~ 'Y'),
-         DURDIS = as.numeric(difftime(as.Date(VISIT1DT), as.Date(DISONSDT), units = "days"))/ 30.44,
          DURDSGR1 = case_when(DURDIS < 12 ~ "<12",
                               DURDIS >= 12 ~ ">=12"),
          ITTFL = case_when(ARMCD != '' ~ 'Y',
