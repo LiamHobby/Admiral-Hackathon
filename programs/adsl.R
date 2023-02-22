@@ -17,7 +17,7 @@ library(haven)
 
 dm = read_xpt("./sdtm/dm.xpt")
 ds = read_xpt("./sdtm/ds.xpt")
-ex = read_xpt("./sdtm/ds.xpt")
+ex = read_xpt("./sdtm/ex.xpt")
 sv = read_xpt("./sdtm/sv.xpt")
 mh = read_xpt("./sdtm/mh.xpt")
 sc = read_xpt("./sdtm/sc.xpt")
@@ -75,7 +75,12 @@ qs <- convert_blanks_to_na(qs)
 # Extracting relevant dm variables
 
 adsl <- dm %>%
-  select(STUDYID, USUBJID, SUBJID, SITEID, ARM, AGE, AGEU, RACE, SEX, ETHNIC, DTHFL, RFSTDTC, RFENDTC)
+  select(STUDYID, USUBJID, SUBJID, SITEID, ARM, AGE, AGEU, RACE, SEX, ETHNIC, DTHFL, RFSTDTC, RFENDTC, ARMCD)
+
+# Removing Screen Failures
+
+adsl <- adsl %>%
+  subset(ARM != "Screen Failure")
 
 # Deriving TRT01P
 
@@ -92,28 +97,51 @@ adsl <- adsl %>%
   derive_vars_merged(
     dataset_add = ds,
     filter_add = (DSCAT == "DISPOSITION EVENT"),
-    new_vars = vars(DSDECOD, VISNUMEN),
-    order = vars(DSDECOD, VISNUMEN),
+    new_vars = vars(DCDECOD = DSDECOD, VISNUMEN, DCREASCD = DSTERM),
+    order = vars(DSDECOD, VISNUMEN, DSTERM),
     mode = "first",
     by_vars = vars(STUDYID, USUBJID)
   )
 
 # Deriving TRTEDT from ex
 
+ex <- ex %>%
+  select(USUBJID, EXENDTC)
+
+USUBJID = vector("character", 0)
+EXENDTC = vector("character", 0)
+
+for(i in 1:nrow(ex))
+{
+  if(i == 1)
+  {
+    subject = ex[1, 1]
+    USUBJID = c(subject)
+  }
+
+  if(ex[i, 1] != subject)
+  {
+    EXENDTC = c(EXENDTC, ex[i - 1, 2])
+    subject = ex[i, 1]
+    USUBJID = c(USUBJID, subject)
+  }
+}
+
+EXENDTC = c(EXENDTC, ex[nrow(ex), 2])
+
+USUBJID <- paste(USUBJID)
+EXENDTC <- paste(EXENDTC)
+
+ex_adsl <- cbind(USUBJID, EXENDTC)
+
 adsl <- adsl %>%
   derive_vars_merged(
-    dataset_add = ex,
-    filter_add = (DSDECOD == "FINAL LAB VISIT"),
-    new_vars = vars(TRTEDT = DSSTDTC),
-    order = vars(DSSTDTC),
+    dataset_add = as.data.frame(ex_adsl),
+    new_vars = vars(TRTEDT = EXENDTC),
+    order = vars(EXENDTC),
     mode = "first",
-    by_vars = vars(STUDYID, USUBJID)
+    by_vars = vars(USUBJID)
   )
-
-# Converting TRTEDT to SAS Date Format
-
-adsl <- adsl %>%
-  mutate(TRTEDT = format(as.Date(TRTEDT), "%d-%b-%Y"))
 
 # Creating sv variables to add to the adsl
 
@@ -129,7 +157,7 @@ sv <- sv %>%
 
 # Extracting relevant sv variables
 
-sv <- sv %>%
+sv_extract <- sv %>%
   select(USUBJID, COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT)
 
 # Initializing columns to add to the adsl
@@ -152,13 +180,13 @@ VISIT1DT_b = FALSE
 # This nested loop goes through every element in the sv data set and extract relevant data
 # i is row and j is column
 
-for(i in 1:nrow(sv))
+for(i in 1:nrow(sv_extract))
 {
-  for(j in 1:ncol(sv))
+  for(j in 1:ncol(sv_extract))
   {
     if(i == 1 & j == 1)
     {
-      subject = sv[i, j]
+      subject = sv_extract[i, j]
       USUBJID <- c(subject)
 
       COMP16FL_b = FALSE
@@ -168,7 +196,7 @@ for(i in 1:nrow(sv))
       VISIT1DT_b = FALSE
     }
 
-    if(j == 1 & sv[i, j] != subject)
+    if(j == 1 & sv_extract[i, j] != subject)
     {
       if(COMP16FL_b == FALSE)
       {
@@ -195,7 +223,7 @@ for(i in 1:nrow(sv))
         VISIT1DT <- c(VISIT1DT, NA)
       }
 
-      subject = sv[i, j]
+      subject = sv_extract[i, j]
       USUBJID = c(USUBJID, subject)
 
       COMP16FL_b = FALSE
@@ -205,33 +233,33 @@ for(i in 1:nrow(sv))
       VISIT1DT_b = FALSE
     }
 
-    if(sv[i, 2] == 'Y' & COMP16FL_b == FALSE)
+    if(sv_extract[i, 2] == 'Y' & COMP16FL_b == FALSE)
     {
       COMP16FL <- c(COMP16FL, 'Y')
       COMP16FL_b = TRUE
     }
 
-    if(sv[i, 3] == 'Y' & COMP24FL_b == FALSE)
+    if(sv_extract[i, 3] == 'Y' & COMP24FL_b == FALSE)
     {
       COMP24FL <- c(COMP24FL, 'Y')
       COMP24FL_b = TRUE
     }
 
-    if(sv[i, 4] == 'Y' & COMP8FL_b == FALSE)
+    if(sv_extract[i, 4] == 'Y' & COMP8FL_b == FALSE)
     {
       COMP8FL <- c(COMP8FL, 'Y')
       COMP8FL_b = TRUE
     }
 
-    if(is.na(sv[i, 5]) == FALSE & TRTSDT_b == FALSE)
+    if(is.na(sv_extract[i, 5]) == FALSE & TRTSDT_b == FALSE)
     {
-      TRTSDT <- c(TRTSDT, sv[i, 5])
+      TRTSDT <- c(TRTSDT, sv_extract[i, 5])
       TRTSDT_b = TRUE
     }
 
-    if(is.na(sv[i, 6]) == FALSE & VISIT1DT_b == FALSE)
+    if(is.na(sv_extract[i, 6]) == FALSE & VISIT1DT_b == FALSE)
     {
-      VISIT1DT = c(VISIT1DT, sv[i, 6])
+      VISIT1DT = c(VISIT1DT, sv_extract[i, 6])
       VISIT1DT_b = TRUE
     }
   }
@@ -281,12 +309,6 @@ adsl <- adsl %>%
     by_vars = vars(USUBJID)
   )
 
-# Formatting the newly added date variables
-
-adsl <- adsl %>%
-  mutate(TRTSDT = format(as.Date(TRTSDT), "%d-%b-%Y"),
-         VISIT1DT = format(as.Date(VISIT1DT), "%d-%b-%Y"))
-
 # Deriving DISONSDT from mh
 
 adsl <- adsl %>%
@@ -299,8 +321,8 @@ adsl <- adsl %>%
     by_vars = vars(STUDYID, USUBJID)
   )
 
-adsl <- adsl %>%
-  mutate(DISONSDT = format(as.Date(DISONSDT), "%d-%b-%Y"))
+#adsl <- adsl %>%
+#  mutate(DISONSDT = format(as.Date(DISONSDT), "%d-%b-%Y"))
 
 # Deriving EDUCLVL from sc
 
@@ -383,19 +405,84 @@ adsl <- adsl %>%
     by_vars = vars(USUBJID)
   )
 
-#adsl <- adsl %>%
-#  mutate(AGEGR1N = case_when(AGE < 65 ~ 1,
-#                            AGE >= 65 & AGE <= 80 ~ 2,
-#                            AGE > 80 ~ 3),
-#         AGEGR1 = case_when(AGEGR1N == 1 ~ "<65",
-#                            AGEGR1N == 2 ~ "65-80",
-#                            AGEGR1N == 3 ~ ">80"),
-#         ARMN = case_when(ARM == "Placebo" ~ 0,
-#                          ARM == "Xanomeline Low Dose" ~ 1,
-#                          ARM == "Xanomeline High Dose" ~ 2),
-#         TRT01PN = ARMN,
-#         TRTDUR = TRTEDT - TRTSDT + 1,
-#         )
+adsl <- adsl %>%
+  derive_vars_merged(
+    dataset_add = sv,
+    filter_add = (VISITNUM == 4),
+    new_vars = vars(VISIT4DT = SVSTDTC),
+    order = vars(SVSTDTC),
+    mode = 'first',
+    by_vars = vars(STUDYID, USUBJID)
+  )
+
+adsl <- adsl %>%
+  derive_vars_merged(
+    dataset_add = sv,
+    filter_add = (VISITNUM == 13),
+    new_vars = vars(VISIT12DT = SVSTDTC),
+    order = vars(SVSTDTC),
+    mode = 'first',
+    by_vars = vars(STUDYID, USUBJID)
+  )
+
+adsl <- adsl %>%
+  mutate(AGEGR1N = case_when(AGE < 65 ~ 1,
+                            AGE >= 65 & AGE <= 80 ~ 2,
+                            AGE > 80 ~ 3),
+         AGEGR1 = case_when(AGEGR1N == 1 ~ "<65",
+                            AGEGR1N == 2 ~ "65-80",
+                            AGEGR1N == 3 ~ ">80"),
+         ARMN = case_when(ARM == "Placebo" ~ 0,
+                          ARM == "Xanomeline Low Dose" ~ 1,
+                          ARM == "Xanomeline High Dose" ~ 2),
+         TRT01PN = case_when(ARMN == 0 ~ 2,
+                             ARMN == 1 ~ 54,
+                             ARMN == 2 ~ 81),
+         TRTDURD = as.numeric(difftime(as.Date(TRTEDT), as.Date(TRTSDT), units = "days")) + 1,
+         EOSSTT = case_when(DCDECOD == "COMPLETED" ~ "COMPLETED",
+                            DCDECOD != "COMPLETED" ~ "DISCONTINUED"),
+         CUMDOSE = case_when(ARMN == 0 ~ 0,
+                             ARMN == 1 ~ TRT01PN * TRTDURD,
+                             ARMN == 2 ~ case_when(VISNUMEN > 3 & VISNUMEN <= 4 ~ case_when(EOSSTT == "COMPLETED" ~ as.numeric(54 * (difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1),
+                                                                                            EOSSTT == "DISCONTINUED" ~ as.numeric(54 * (difftime(as.Date(TRTEDT), as.Date(TRTSDT), units = "days")) + 1)),
+                                                   VISNUMEN > 4 & VISNUMEN <= 12 ~ case_when(EOSSTT == "COMPLETED" ~ as.numeric(81 * (difftime(as.Date(VISIT12DT), as.Date(VISIT4DT), units = "days"))),
+                                                                                             EOSSTT == "DISCONTINUED" ~ as.numeric(81 * (difftime(as.Date(TRTEDT), as.Date(VISIT4DT), units = "days")))),
+                                                   VISNUMEN > 12 ~ 54 * as.numeric(difftime(as.Date(TRTEDT), as.Date(VISIT12DT), units = "days")))),
+         AVGDD = CUMDOSE / TRTDURD,
+         BMIBL = WEIGHTBL / ((HEIGHTBL / 100) ^ 2),
+         BMIBLGR1 = case_when(BMIBL < 25 ~ "<25",
+                              BMIBL >= 25 & BMIBL < 30 ~ "25-<30",
+                              BMIBL >= 30 ~ ">=30"),
+         DISCONFL = case_when(DCREASCD == "PROTOCOL COMPLETED" ~ 'Y'),
+         DSRAEFL = case_when(DCREASCD == "ADVERSE EVENT" ~ 'Y'),
+         DURDIS = as.numeric(difftime(as.Date(VISIT1DT), as.Date(DISONSDT), units = "days"))/ 30.44,
+         DURDSGR1 = case_when(DURDIS < 12 ~ "<12",
+                              DURDIS >= 12 ~ ">=12"),
+         ITTFL = case_when(ARMCD != '' ~ 'Y',
+                           ARMCD == '' ~ 'N'),
+         SAFFL = case_when(ITTFL == 'Y' & is.na(TRTSDT) == FALSE ~ 'Y',
+                           TRUE ~ 'N'),
+         RACEN = case_when(RACE == "AMERICAN INDIAN OR ALASKA NATIVE" ~ 1,
+                           RACE == "ASIAN - CENTRAL/SOUTH ASIAN HERITAGE" ~ 2,
+                           RACE == "ASIAN - EAST ASIAN HERITAGE" ~ 3,
+                           RACE == "ASIAN - JAPANESE HERITAGE" ~ 4,
+                           RACE == "ASIAN - SOUTH EAST ASIAN HERITAGE" ~ 5,
+                           RACE == "BLACK OR AFRICAN AMERICAN" ~ 6,
+                           RACE == "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER" ~ 7,
+                           RACE == "WHITE - ARABIC/NORTH AFRICAN HERITAGE" ~ 8,
+                           RACE == "WHITE - WHITE/CAUCASIAN/EUROPEAN HERITAGE" ~ 9,
+                           RACE == "MIXED ASIAN RACE" ~ 10,
+                           RACE == "MIXED WHITE RACE" ~ 11,
+                           RACE == "MIXED RACE" ~ 12),
+         RFENDT = format(as.Date(RFENDTC), "%d-%b-%Y"),
+         SITEGR1 = SITEID,
+         TRT01A = TRT01P,
+         TRT01AN = TRT01PN)
+
+# Removing Screen Failures
+
+adsl <- adsl %>%
+  subset(ARM != "Screen Failure")
 
 adsl <- adsl %>%
   xportr_write("./adam/adsl2.xpt", label = "Subject-Level Analysis Dataset")
