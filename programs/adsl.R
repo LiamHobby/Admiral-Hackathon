@@ -485,7 +485,12 @@ adsl <- adsl %>%
 
 adsl <- adsl %>%
   mutate(VISIT1DT = as.Date(VISIT1DT),
-         DISONSDT = as.Date(DISONSDT))
+         VISIT4DT = as.Date(VISIT4DT),
+         VISIT12DT = as.Date(VISIT12DT),
+         DISONSDT = as.Date(DISONSDT),
+         TRTSDT = as.Date(TRTSDT),
+         TRTEDT = as.Date(TRTEDT)
+         )
 
 adsl$DURDIS <- compute_duration(
   adsl$DISONSDT,
@@ -494,6 +499,66 @@ adsl$DURDIS <- compute_duration(
   out_unit = "months",
   floor_in = TRUE,
   add_one = TRUE,
+  trunc_out = FALSE
+)
+
+adsl$TRTDURD <- compute_duration(
+  adsl$TRTSDT,
+  adsl$TRTEDT,
+  in_unit = "days",
+  out_unit = "days",
+  floor_in = TRUE,
+  add_one = TRUE,
+  trunc_out = FALSE
+)
+
+adsl$Interval_1 <- compute_duration(
+  adsl$TRTSDT,
+  adsl$VISIT4DT,
+  in_unit = "days",
+  out_unit = "days",
+  floor_in = TRUE,
+  add_one = TRUE,
+  trunc_out = FALSE
+)
+
+adsl$Interval_1_Discontinued <- compute_duration(
+  adsl$TRTSDT,
+  adsl$TRTEDT,
+  in_unit = "days",
+  out_unit = "days",
+  floor_in = TRUE,
+  add_one = TRUE,
+  trunc_out = FALSE
+)
+
+adsl$Interval_2 <- compute_duration(
+  adsl$VISIT4DT,
+  adsl$VISIT12DT,
+  in_unit = "days",
+  out_unit = "days",
+  floor_in = TRUE,
+  add_one = FALSE,
+  trunc_out = FALSE
+)
+
+adsl$Interval_3 <- compute_duration(
+  adsl$VISIT12DT,
+  adsl$TRTEDT,
+  in_unit = "days",
+  out_unit = "days",
+  floor_in = TRUE,
+  add_one = FALSE,
+  trunc_out = FALSE
+)
+
+adsl$Interval_2_Discontinued <- compute_duration(
+  adsl$VISIT4DT,
+  adsl$TRTEDT,
+  in_unit = "days",
+  out_unit = "days",
+  floor_in = TRUE,
+  add_one = FALSE,
   trunc_out = FALSE
 )
 
@@ -512,16 +577,15 @@ adsl <- adsl %>%
          TRT01PN = case_when(ARMN == 0 ~ 2,
                              ARMN == 1 ~ 54,
                              ARMN == 2 ~ 81),
-         TRTDURD = as.numeric(difftime(as.Date(TRTEDT), as.Date(TRTSDT), units = "days")) + 1,
          EOSSTT = case_when(DCDECOD == "COMPLETED" ~ "COMPLETED",
                             DCDECOD != "COMPLETED" ~ "DISCONTINUED"),
          CUMDOSE = case_when(ARMN == 0 ~ 0,
                              ARMN == 1 ~ TRT01PN * TRTDURD,
-                             ARMN == 2 ~ case_when(VISNUMEN > 3 & VISNUMEN <= 4 ~ case_when(EOSSTT == "COMPLETED" ~ 54 * as.numeric((difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1),
-                                                                                            EOSSTT == "DISCONTINUED" ~ 54 * as.numeric((difftime(as.Date(TRTEDT), as.Date(TRTSDT), units = "days")) + 1)),
-                                                   VISNUMEN > 4 & VISNUMEN <= 12 ~ case_when(EOSSTT == "COMPLETED" ~ (54 * as.numeric((difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1)) + (81 * as.numeric((difftime(as.Date(VISIT12DT), as.Date(VISIT4DT), units = "days")))) + (54 * as.numeric(difftime(as.Date(TRTEDT), as.Date(VISIT12DT), units = "days"))),
-                                                                                             EOSSTT == "DISCONTINUED" ~ 54 * as.numeric((difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1) + 81 * as.numeric((difftime(as.Date(TRTEDT), as.Date(VISIT4DT), units = "days")))),
-                                                   VISNUMEN > 12 ~ 54 * as.numeric((difftime(as.Date(VISIT4DT) ,as.Date(TRTSDT), units = "days")) + 1) + 81 * as.numeric((difftime(as.Date(VISIT12DT), as.Date(VISIT4DT), units = "days"))) + 54 * as.numeric(difftime(as.Date(TRTEDT), as.Date(VISIT12DT), units = "days")))),
+                             ARMN == 2 ~ case_when(VISNUMEN > 3 & VISNUMEN <= 4 ~ case_when(EOSSTT == "COMPLETED" ~ 54 * Interval_1,
+                                                                                            EOSSTT == "DISCONTINUED" ~ 54 * Interval_1_Discontinued),
+                                                   VISNUMEN > 4 & VISNUMEN <= 12 ~ case_when(EOSSTT == "COMPLETED" ~ 54 * Interval_1 + 81 * Interval_2 + 54 * Interval_3,
+                                                                                             EOSSTT == "DISCONTINUED" ~ 54 * Interval_1 + 81 * Interval_2_Discontinued),
+                                                   VISNUMEN > 12 ~ 54 * Interval_1 + 81 * Interval_2 + 54 * Interval_3)),
          AVGDD = CUMDOSE / TRTDURD,
          BMIBL = WEIGHTBL / ((HEIGHTBL / 100) ^ 2),
          BMIBLGR1 = case_when(BMIBL < 25 ~ "<25",
