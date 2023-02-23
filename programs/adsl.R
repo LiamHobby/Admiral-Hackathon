@@ -489,8 +489,7 @@ adsl <- adsl %>%
          VISIT12DT = as.Date(VISIT12DT),
          DISONSDT = as.Date(DISONSDT),
          TRTSDT = as.Date(TRTSDT),
-         TRTEDT = as.Date(TRTEDT)
-         )
+         TRTEDT = as.Date(TRTEDT))
 
 adsl$DURDIS <- compute_duration(
   adsl$DISONSDT,
@@ -502,6 +501,8 @@ adsl$DURDIS <- compute_duration(
   trunc_out = FALSE
 )
 
+# Deriving TRTDURD
+
 adsl$TRTDURD <- compute_duration(
   adsl$TRTSDT,
   adsl$TRTEDT,
@@ -511,6 +512,8 @@ adsl$TRTDURD <- compute_duration(
   add_one = TRUE,
   trunc_out = FALSE
 )
+
+# Deriving variables used for caluculating CUMDOSE
 
 adsl$Interval_1 <- compute_duration(
   adsl$TRTSDT,
@@ -608,15 +611,29 @@ adsl <- adsl %>%
                            RACE == "ASIAN - SOUTH EAST ASIAN HERITAGE" ~ 5,
                            RACE == "BLACK OR AFRICAN AMERICAN" ~ 6,
                            RACE == "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER" ~ 7,
-                           RACE == "WHITE - ARABIC/NORTH AFRICAN HERITAGE" ~ 8,
-                           RACE == "WHITE - WHITE/CAUCASIAN/EUROPEAN HERITAGE" ~ 9,
+                           RACE == "WHITE" ~ 8,
                            RACE == "MIXED ASIAN RACE" ~ 10,
                            RACE == "MIXED WHITE RACE" ~ 11,
                            RACE == "MIXED RACE" ~ 12),
          RFENDT = format(as.Date(RFENDTC), "%d-%b-%Y"),
          SITEGR1 = SITEID,
          TRT01A = TRT01P,
-         TRT01AN = TRT01PN)
+         TRT01AN = TRT01PN,
+         RFSTDTC = format(as.Date(RFSTDTC), "%d-%b-%Y"),
+         RFENDTC = format(as.Date(RFENDTC), "%d-%b-%Y"),
+         TRTSDT = format(as.Date(TRTSDT), "%d-%b-%Y"),
+         TRTEDT = format(as.Date(TRTEDT), "%d-%b-%Y"),
+         VISIT1DT = format(as.Date(VISIT1DT), "%d-%b-%Y"),
+         VISIT4DT = format(as.Date(VISIT4DT), "%d-%b-%Y"),
+         VISIT12DT = format(as.Date(VISIT12DT), "%d-%b-%Y"),
+         DISONSDT = format(as.Date(DISONSDT), "%d-%b-%Y"))
+
+# Keeping only relevant adsl variables
+
+adsl <- adsl %>%
+  select(STUDYID, USUBJID, SUBJID, SITEID, SITEGR1, ARM, TRT01P, TRT01PN, TRT01A, TRT01AN, TRTSDT, TRTEDT, TRTDURD, AVGDD, CUMDOSE, AGE, AGEGR1, AGEGR1N,
+         AGEU, RACE, RACEN, SEX, ETHNIC, SAFFL, ITTFL, EFFFL, COMP8FL, COMP16FL, COMP24FL, DISCONFL, DSRAEFL, DTHFL, BMIBL, BMIBLGR1, HEIGHTBL, WEIGHTBL,
+         EDUCLVL, DISONSDT, DURDIS, DURDSGR1, VISIT1DT, RFSTDTC, RFENDTC, VISNUMEN, RFENDT, DCDECOD, EOSSTT, DCREASCD, MMSETOT)
 
 # Removing Screen Failures
 
