@@ -361,11 +361,17 @@ adsl <- adsl %>%
 # Deriving MSSETOT form qs
 
 qs <- qs %>%
-  select(USUBJID, QSORRES, QSCAT)
+  select(USUBJID, QSORRES, QSCAT, VISITNUM)
 
 USUBJID = vector("character", 0)
 MMSETOT = vector("integer", 0)
+flag_ADASCog = vector("character", 0)
+flag_CIBIC = vector("character", 0)
+
 n_MMSETOT = 0
+
+is_ADASCog = FALSE
+is_CIBIC = FALSE
 
 for(i in 1:nrow(qs))
 {
@@ -380,30 +386,78 @@ for(i in 1:nrow(qs))
     n_MMSETOT = n_MMSETOT + as.integer(qs[i, 2])
   }
 
+  if(qs[i, 3] == "ALZHEIMER'S DISEASE ASSESSMENT SCALE" & qs[i, 4] > 3 & is_ADASCog == FALSE)
+  {
+    flag_ADASCog = c(flag_ADASCog, 'Y')
+    is_ADASCog = TRUE
+  }
+
+  if(qs[i, 3] == "CLINICIAN'S INTERVIEW-BASED IMPRESSION OF CHANGE (CIBIC+)" & qs[i, 4] > 3 & is_CIBIC == FALSE)
+  {
+    flag_CIBIC = c(flag_CIBIC, 'Y')
+    is_CIBIC = TRUE
+  }
+
   if(qs[i, 1] != subject)
   {
     MMSETOT = c(MMSETOT, n_MMSETOT)
     subject = qs[i, 1]
     USUBJID = c(USUBJID, subject)
     n_MMSETOT = 0
+
+    if(is_ADASCog == TRUE)
+    {
+      is_ADASCog = FALSE
+    }
+    else
+    {
+      flag_ADASCog = c(flag_ADASCog, 'N')
+    }
+
+    if(is_CIBIC == TRUE)
+    {
+      is_CBIC = FALSE
+    }
+    else
+    {
+      flag_CIBIC = c(flag_CIBIC, 'N')
+    }
   }
 }
 
 MMSETOT = c(MMSETOT, n_MMSETOT)
 
+if(is_ADASCog == TRUE)
+{
+  is_ADASCog = FALSE
+} else
+{
+  flag_ADASCog = c(flag_ADASCog, 'N')
+}
+
+if(is_CIBIC == TRUE)
+{
+  is_CBIC = FALSE
+} else
+{
+  flag_CIBIC = c(flag_CIBIC, 'N')
+}
+
 USUBJID <- paste(USUBJID)
 MMSETOT <- paste(MMSETOT)
 
-qs_adsl <- cbind(USUBJID, MMSETOT)
+qs_adsl <- cbind(USUBJID, MMSETOT, flag_ADASCog, flag_CIBIC)
 
 adsl <- adsl %>%
   derive_vars_merged(
     dataset_add = as.data.frame(qs_adsl),
-    new_vars = vars(MMSETOT),
+    new_vars = vars(MMSETOT, flag_ADASCog, flag_CIBIC),
     order = vars(MMSETOT),
     mode = 'first',
     by_vars = vars(USUBJID)
   )
+
+# Deriving VISIT4DT from sv to derive CUMDOSE
 
 adsl <- adsl %>%
   derive_vars_merged(
@@ -415,6 +469,8 @@ adsl <- adsl %>%
     by_vars = vars(STUDYID, USUBJID)
   )
 
+# Deriving VISIT12DT from sv to derive CUMDOSE
+
 adsl <- adsl %>%
   derive_vars_merged(
     dataset_add = sv,
@@ -424,6 +480,8 @@ adsl <- adsl %>%
     mode = 'first',
     by_vars = vars(STUDYID, USUBJID)
   )
+
+# Deriving DURDIS
 
 adsl <- adsl %>%
   mutate(VISIT1DT = as.Date(VISIT1DT),
@@ -438,6 +496,8 @@ adsl$DURDIS <- compute_duration(
   add_one = TRUE,
   trunc_out = FALSE
 )
+
+# Deriving more variables
 
 adsl <- adsl %>%
   mutate(AGEGR1N = case_when(AGE < 65 ~ 1,
@@ -475,6 +535,8 @@ adsl <- adsl %>%
                            ARMCD == '' ~ 'N'),
          SAFFL = case_when(ITTFL == 'Y' & is.na(TRTSDT) == FALSE ~ 'Y',
                            TRUE ~ 'N'),
+         EFFFL = case_when(SAFFL == 'Y' & flag_ADASCog == 'Y' & flag_CIBIC == 'Y' ~ 'Y',
+                           TRUE ~ 'N'),
          RACEN = case_when(RACE == "AMERICAN INDIAN OR ALASKA NATIVE" ~ 1,
                            RACE == "ASIAN - CENTRAL/SOUTH ASIAN HERITAGE" ~ 2,
                            RACE == "ASIAN - EAST ASIAN HERITAGE" ~ 3,
@@ -496,6 +558,8 @@ adsl <- adsl %>%
 
 adsl <- adsl %>%
   subset(ARM != "Screen Failure")
+
+# Exporting adsl
 
 adsl <- adsl %>%
   xportr_write("./adam/adsl2.xpt", label = "Subject-Level Analysis Dataset")
