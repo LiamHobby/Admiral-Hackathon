@@ -2,7 +2,7 @@
 #
 # Label: Subject Level Analysis Dataset
 #
-# Input: dm, ex, ds
+# Input: dm, ds, ex, sv, mh, sc, vs, qs
 library(admiral)
 library(dplyr)
 library(lubridate)
@@ -10,10 +10,6 @@ library(stringr)
 library(haven)
 
 # Load source datasets ----
-
-# Use e.g. haven::read_sas to read in .sas7bdat, or other suitable functions
-# as needed and assign to the variables below.
-# For illustration purposes read in admiral test data
 
 dm = read_xpt("./sdtm/dm.xpt")
 ds = read_xpt("./sdtm/ds.xpt")
@@ -23,40 +19,6 @@ mh = read_xpt("./sdtm/mh.xpt")
 sc = read_xpt("./sdtm/sc.xpt")
 vs = read_xpt("./sdtm/vs.xpt")
 qs = read_xpt("./sdtm/qs.xpt")
-
-#Loading supplementary data sets
-
-suppdm = read_xpt("./sdtm/suppdm.xpt")
-suppds = read_xpt("./sdtm/suppdm.xpt")
-
-#Merging supplementary data sets with the source data sets.
-
-suppdm <- suppdm %>%
-  rename_at('RDOMAIN', ~'DOMAIN')
-
-dm <- dm %>%
-  derive_vars_merged(
-    dataset_add = suppdm,
-    new_vars = vars(QNAM, QLABEL, QVAL, QORIG, QEVAL),
-    order = vars(QNAM, QLABEL, QVAL, QORIG, QEVAL),
-    mode = 'first',
-    by_vars = vars(STUDYID, DOMAIN, USUBJID)
-  )
-
-suppds <- suppds %>%
-  mutate(RDOMAIN = "DS")
-
-suppds <- suppds %>%
-  rename_at('RDOMAIN', ~'DOMAIN')
-
-ds <- ds %>%
-  derive_vars_merged(
-    dataset_add = suppds,
-    new_vars = vars(QNAM, QLABEL, QVAL, QORIG, QEVAL),
-    order = vars(QNAM, QLABEL, QVAL, QORIG, QEVAL),
-    mode = 'first',
-    by_vars = vars(STUDYID, DOMAIN, USUBJID)
-  )
 
 # When SAS datasets are imported into R using haven::read_sas(), missing
 # character values from SAS appear as "" characters in R, instead of appearing
