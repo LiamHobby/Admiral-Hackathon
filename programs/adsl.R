@@ -5,8 +5,6 @@
 # Input: dm, ds, ex, sv, mh, sc, vs, qs
 library(admiral)
 library(dplyr)
-library(lubridate)
-library(stringr)
 library(haven)
 
 # Load source datasets ----
@@ -38,11 +36,6 @@ qs <- convert_blanks_to_na(qs)
 
 adsl <- dm %>%
   select(STUDYID, USUBJID, SUBJID, SITEID, ARM, AGE, AGEU, RACE, SEX, ETHNIC, DTHFL, RFSTDTC, RFENDTC, ARMCD)
-
-# Removing Screen Failures
-
-adsl <- adsl %>%
-  subset(ARM != "Screen Failure")
 
 # Deriving TRT01P
 
@@ -269,11 +262,7 @@ adsl <- adsl %>%
     order = vars(COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT),
     mode = 'first',
     by_vars = vars(USUBJID)
-  )
-
-# Deriving DISONSDT from mh
-
-adsl <- adsl %>%
+  ) %>% # Deriving DISONSDT from mh
   derive_vars_merged(
     dataset_add = mh,
     filter_add = (MHCAT == "PRIMARY DIAGNOSIS"),
@@ -281,14 +270,7 @@ adsl <- adsl %>%
     order = vars(MHSTDTC),
     mode = 'first',
     by_vars = vars(STUDYID, USUBJID)
-  )
-
-#adsl <- adsl %>%
-#  mutate(DISONSDT = format(as.Date(DISONSDT), "%d-%b-%Y"))
-
-# Deriving EDUCLVL from sc
-
-adsl <- adsl %>%
+  ) %>% # Deriving EDUCLVL from sc
   derive_vars_merged(
     dataset_add = sc,
     filter_add = (SCTESTCD == "EDLEVEL"),
@@ -296,11 +278,7 @@ adsl <- adsl %>%
     order = vars(SCSTRESN),
     mode = 'first',
     by_vars = vars(STUDYID, USUBJID)
-  )
-
-# Deriving variables from vs
-
-adsl <- adsl %>%
+  ) %>% # Deriving variables from vs
   derive_vars_merged(
     dataset_add = vs,
     filter_add = (VSTESTCD == "HEIGHT" & VISITNUM == 1),
@@ -308,9 +286,7 @@ adsl <- adsl %>%
     order = vars(VSSTRESN),
     mode = 'first',
     by_vars = vars(STUDYID, USUBJID)
-  )
-
-adsl <- adsl %>%
+  ) %>%
   derive_vars_merged(
     dataset_add = vs,
     filter_add = (VSTESTCD == "WEIGHT" & VISITNUM == 3),
@@ -417,11 +393,7 @@ adsl <- adsl %>%
     order = vars(MMSETOT),
     mode = 'first',
     by_vars = vars(USUBJID)
-  )
-
-# Deriving VISIT4DT from sv to derive CUMDOSE
-
-adsl <- adsl %>%
+  ) %>% # Deriving VISIT4DT from sv to derive CUMDOSE
   derive_vars_merged(
     dataset_add = sv,
     filter_add = (VISITNUM == 4),
@@ -429,11 +401,7 @@ adsl <- adsl %>%
     order = vars(SVSTDTC),
     mode = 'first',
     by_vars = vars(STUDYID, USUBJID)
-  )
-
-# Deriving VISIT12DT from sv to derive CUMDOSE
-
-adsl <- adsl %>%
+  ) %>% # Deriving VISIT12DT from sv to derive CUMDOSE
   derive_vars_merged(
     dataset_add = sv,
     filter_add = (VISITNUM == 12),
@@ -441,11 +409,7 @@ adsl <- adsl %>%
     order = vars(SVSTDTC),
     mode = 'first',
     by_vars = vars(STUDYID, USUBJID)
-  )
-
-# Deriving DURDIS
-
-adsl <- adsl %>%
+  ) %>% # Deriving DURDIS
   mutate(VISIT1DT = as.Date(VISIT1DT),
          VISIT4DT = as.Date(VISIT4DT),
          VISIT12DT = as.Date(VISIT12DT),
@@ -588,21 +552,9 @@ adsl <- adsl %>%
          VISIT1DT = format(as.Date(VISIT1DT), "%d-%b-%Y"),
          VISIT4DT = format(as.Date(VISIT4DT), "%d-%b-%Y"),
          VISIT12DT = format(as.Date(VISIT12DT), "%d-%b-%Y"),
-         DISONSDT = format(as.Date(DISONSDT), "%d-%b-%Y"))
-
-# Keeping only relevant adsl variables
-
-adsl <- adsl %>%
+         DISONSDT = format(as.Date(DISONSDT), "%d-%b-%Y")) %>% # Keeping only relevant adsl variables
   select(STUDYID, USUBJID, SUBJID, SITEID, SITEGR1, ARM, TRT01P, TRT01PN, TRT01A, TRT01AN, TRTSDT, TRTEDT, TRTDURD, AVGDD, CUMDOSE, AGE, AGEGR1, AGEGR1N,
          AGEU, RACE, RACEN, SEX, ETHNIC, SAFFL, ITTFL, EFFFL, COMP8FL, COMP16FL, COMP24FL, DISCONFL, DSRAEFL, DTHFL, BMIBL, BMIBLGR1, HEIGHTBL, WEIGHTBL,
-         EDUCLVL, DISONSDT, DURDIS, DURDSGR1, VISIT1DT, RFSTDTC, RFENDTC, VISNUMEN, RFENDT, DCDECOD, EOSSTT, DCREASCD, MMSETOT)
-
-# Removing Screen Failures
-
-adsl <- adsl %>%
-  subset(ARM != "Screen Failure")
-
-# Exporting adsl
-
-adsl <- adsl %>%
-  xportr_write("./adam/adsl2.xpt", label = "Subject-Level Analysis Dataset")
+         EDUCLVL, DISONSDT, DURDIS, DURDSGR1, VISIT1DT, RFSTDTC, RFENDTC, VISNUMEN, RFENDT, DCDECOD, EOSSTT, DCREASCD, MMSETOT) %>% # Removing Screen Failures
+  subset(ARM != "Screen Failure") %>% # Exporting adsl
+  write_xpt(path = "./adam/adsl2.xpt", label = "Subject-Level Analysis Dataset")
