@@ -32,12 +32,12 @@ sc <- convert_blanks_to_na(sc)
 vs <- convert_blanks_to_na(vs)
 qs <- convert_blanks_to_na(qs)
 
-# Extracting relevant dm variables
+### Extracting relevant dm variables
 
 adsl <- dm %>%
   select(STUDYID, USUBJID, SUBJID, SITEID, ARM, AGE, AGEU, RACE, SEX, ETHNIC, DTHFL, RFSTDTC, RFENDTC, ARMCD)
 
-# Deriving TRT01P
+### Deriving TRT01P
 
 adsl <- adsl %>%
   mutate(TRT01P = ARM)
@@ -59,6 +59,8 @@ adsl <- adsl %>%
   )
 
 # Deriving TRTEDT from ex
+
+# slice and by group
 
 ex <- ex %>%
   select(USUBJID, EXENDTC)
@@ -298,15 +300,28 @@ adsl <- adsl %>%
 
 # Deriving MSSETOT form qs
 
+qs_test <- qs %>%
+  filter(QSCAT == "MINI-MENTAL STATE") %>%
+  group_by(USUBJID) %>%
+  summarise(MMSETOT = sum(as.numeric(QSORRES), na.rm = TRUE)) %>%
+  select(USUBJID, MMSETOT) %>%
+  ungroup()
+
+adsl <- adsl %>%
+  derive_vars_merged(
+    dataset_add = qs_test,
+    new_vars = vars(MMSETOT),
+    order = vars(MMSETOT),
+    mode = 'first',
+    by_vars = vars(USUBJID)
+  )
+
 qs <- qs %>%
-  select(USUBJID, QSORRES, QSCAT, VISITNUM)
+  select(USUBJID, QSCAT, VISITNUM)
 
 USUBJID = vector("character", 0)
-MMSETOT = vector("integer", 0)
 flag_ADASCog = vector("character", 0)
 flag_CIBIC = vector("character", 0)
-
-n_MMSETOT = 0
 
 is_ADASCog = FALSE
 is_CIBIC = FALSE
@@ -319,18 +334,13 @@ for(i in 1:nrow(qs))
     USUBJID = c(subject)
   }
 
-  if(qs[i, 3] == "MINI-MENTAL STATE")
-  {
-    n_MMSETOT = n_MMSETOT + as.integer(qs[i, 2])
-  }
-
-  if(qs[i, 3] == "ALZHEIMER'S DISEASE ASSESSMENT SCALE" & qs[i, 4] > 3 & is_ADASCog == FALSE)
+  if(qs[i, 3] == "ALZHEIMER'S DISEASE ASSESSMENT SCALE" & qs[i, 3] > 3 & is_ADASCog == FALSE)
   {
     flag_ADASCog = c(flag_ADASCog, 'Y')
     is_ADASCog = TRUE
   }
 
-  if(qs[i, 3] == "CLINICIAN'S INTERVIEW-BASED IMPRESSION OF CHANGE (CIBIC+)" & qs[i, 4] > 3 & is_CIBIC == FALSE)
+  if(qs[i, 3] == "CLINICIAN'S INTERVIEW-BASED IMPRESSION OF CHANGE (CIBIC+)" & qs[i, 3] > 3 & is_CIBIC == FALSE)
   {
     flag_CIBIC = c(flag_CIBIC, 'Y')
     is_CIBIC = TRUE
@@ -338,10 +348,8 @@ for(i in 1:nrow(qs))
 
   if(qs[i, 1] != subject)
   {
-    MMSETOT = c(MMSETOT, n_MMSETOT)
     subject = qs[i, 1]
     USUBJID = c(USUBJID, subject)
-    n_MMSETOT = 0
 
     if(is_ADASCog == TRUE)
     {
@@ -363,8 +371,6 @@ for(i in 1:nrow(qs))
   }
 }
 
-MMSETOT = c(MMSETOT, n_MMSETOT)
-
 if(is_ADASCog == TRUE)
 {
   is_ADASCog = FALSE
@@ -382,15 +388,14 @@ if(is_CIBIC == TRUE)
 }
 
 USUBJID <- paste(USUBJID)
-MMSETOT <- paste(MMSETOT)
 
-qs_adsl <- cbind(USUBJID, MMSETOT, flag_ADASCog, flag_CIBIC)
+qs_adsl <- cbind(USUBJID, flag_ADASCog, flag_CIBIC)
 
 adsl <- adsl %>%
   derive_vars_merged(
     dataset_add = as.data.frame(qs_adsl),
-    new_vars = vars(MMSETOT, flag_ADASCog, flag_CIBIC),
-    order = vars(MMSETOT),
+    new_vars = vars(flag_ADASCog, flag_CIBIC),
+    order = vars(flag_ADASCog, flag_CIBIC),
     mode = 'first',
     by_vars = vars(USUBJID)
   ) %>% # Deriving VISIT4DT from sv to derive CUMDOSE
