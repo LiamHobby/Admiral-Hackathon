@@ -11,6 +11,7 @@ library(haven)
 
 dm = read_xpt("./sdtm/dm.xpt")
 ds = read_xpt("./sdtm/ds.xpt")
+
 ex = read_xpt("./sdtm/ex.xpt")
 sv = read_xpt("./sdtm/sv.xpt")
 mh = read_xpt("./sdtm/mh.xpt")
@@ -98,6 +99,22 @@ adsl <- adsl %>%
     order = vars(EXENDTC),
     mode = "first",
     by_vars = vars(USUBJID)
+  ) %>% # Creating sv varables to add to the adsl
+  derive_vars_merged(
+    dataset_add = sv,
+    filter_add = (VISITNUM == 3),
+    new_vars = vars(TRTSDT = SVSTDTC),
+    order = vars(SVSTDTC),
+    mode = "first",
+    by_vars = vars(STUDYID, USUBJID)
+  ) %>%
+  derive_vars_merged(
+    dataset_add = sv,
+    filter_add = (VISITNUM == 1),
+    new_vars = vars(VISIT1DT = SVSTDTC),
+    order = vars(SVSTDTC),
+    mode = "first",
+    by_vars = vars(STUDYID, USUBJID)
   )
 
 # Creating sv variables to add to the adsl
@@ -108,14 +125,12 @@ sv <- sv %>%
          COMP24FL = case_when(VISITNUM == 12 & VISITDY >= 84 ~ 'Y',
                               TRUE ~ 'N'),
          COMP8FL = case_when(VISITNUM == 8 & VISITDY >= 56 ~ 'Y',
-                             TRUE ~ 'N'),
-         TRTSDT = case_when(VISITNUM == 3 ~ SVSTDTC),
-         VISIT1DT = case_when(VISITNUM == 1 ~ SVSTDTC))
+                             TRUE ~ 'N'))
 
 # Extracting relevant sv variables
 
 sv_extract <- sv %>%
-  select(USUBJID, COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT)
+  select(USUBJID, COMP16FL, COMP24FL, COMP8FL)
 
 # Initializing columns to add to the adsl
 
@@ -123,16 +138,12 @@ USUBJID = vector("character", 0)
 COMP16FL = vector("character", 0)
 COMP24FL = vector("character", 0)
 COMP8FL = vector("character", 0)
-TRTSDT = vector("character", 0)
-VISIT1DT = vector("character", 0)
 
 # The Boolean flags ensure that no more than 1 record is added for a subject
 
 COMP16FL_b = FALSE
 COMP24FL_b = FALSE
 COMP8FL_b = FALSE
-TRTSDT_b = FALSE
-VISIT1DT_b = FALSE
 
 # This nested loop goes through every element in the sv data set and extract relevant data
 # i is row and j is column
@@ -149,8 +160,6 @@ for(i in 1:nrow(sv_extract))
       COMP16FL_b = FALSE
       COMP24FL_b = FALSE
       COMP8FL_b = FALSE
-      TRTSDT_b = FALSE
-      VISIT1DT_b = FALSE
     }
 
     if(j == 1 & sv_extract[i, j] != subject)
@@ -170,24 +179,12 @@ for(i in 1:nrow(sv_extract))
         COMP8FL <- c(COMP8FL, 'N')
       }
 
-      if(TRTSDT_b == FALSE)
-      {
-        TRTSDT <- c(TRTSDT, NA)
-      }
-
-      if(VISIT1DT_b == FALSE)
-      {
-        VISIT1DT <- c(VISIT1DT, NA)
-      }
-
       subject = sv_extract[i, j]
       USUBJID = c(USUBJID, subject)
 
       COMP16FL_b = FALSE
       COMP24FL_b = FALSE
       COMP8FL_b = FALSE
-      TRTSDT_b = FALSE
-      VISIT1DT_b = FALSE
     }
 
     if(sv_extract[i, 2] == 'Y' & COMP16FL_b == FALSE)
@@ -207,18 +204,6 @@ for(i in 1:nrow(sv_extract))
       COMP8FL <- c(COMP8FL, 'Y')
       COMP8FL_b = TRUE
     }
-
-    if(is.na(sv_extract[i, 5]) == FALSE & TRTSDT_b == FALSE)
-    {
-      TRTSDT <- c(TRTSDT, sv_extract[i, 5])
-      TRTSDT_b = TRUE
-    }
-
-    if(is.na(sv_extract[i, 6]) == FALSE & VISIT1DT_b == FALSE)
-    {
-      VISIT1DT = c(VISIT1DT, sv_extract[i, 6])
-      VISIT1DT_b = TRUE
-    }
   }
 }
 
@@ -237,31 +222,19 @@ if(COMP8FL_b == FALSE)
   COMP8FL <- c(COMP8FL, 'N')
 }
 
-if(TRTSDT_b == FALSE)
-{
-  TRTSDT <- c(TRTSDT, NA)
-}
-
-if(VISIT1DT_b == FALSE)
-{
-  VISIT1DT <- c(VISIT1DT, NA)
-}
-
 # Converting lists in to characters because the adsl columns are characters
 
 USUBJID <- paste(USUBJID)
-TRTSDT <- paste(TRTSDT)
-VISIT1DT <-paste(VISIT1DT)
 
 # Creating the data set to merge with the adsl
 
-sv_adsl <- cbind(USUBJID, COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT)
+sv_adsl <- cbind(USUBJID, COMP16FL, COMP24FL, COMP8FL)
 
 adsl <- adsl %>%
   derive_vars_merged(
     dataset_add = as.data.frame(sv_adsl),
-    new_vars = vars(COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT),
-    order = vars(COMP16FL, COMP24FL, COMP8FL, TRTSDT, VISIT1DT),
+    new_vars = vars(COMP16FL, COMP24FL, COMP8FL),
+    order = vars(COMP16FL, COMP24FL, COMP8FL),
     mode = 'first',
     by_vars = vars(USUBJID)
   ) %>% # Deriving DISONSDT from mh
@@ -300,7 +273,7 @@ adsl <- adsl %>%
 
 # Deriving MSSETOT form qs
 
-qs_test <- qs %>%
+qs_MSSETOT <- qs %>%
   filter(QSCAT == "MINI-MENTAL STATE") %>%
   group_by(USUBJID) %>%
   summarise(MMSETOT = sum(as.numeric(QSORRES), na.rm = TRUE)) %>%
@@ -309,7 +282,7 @@ qs_test <- qs %>%
 
 adsl <- adsl %>%
   derive_vars_merged(
-    dataset_add = qs_test,
+    dataset_add = qs_MSSETOT,
     new_vars = vars(MMSETOT),
     order = vars(MMSETOT),
     mode = 'first',
