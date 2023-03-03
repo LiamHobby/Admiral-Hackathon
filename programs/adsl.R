@@ -11,7 +11,6 @@ library(haven)
 
 dm = read_xpt("./sdtm/dm.xpt")
 ds = read_xpt("./sdtm/ds.xpt")
-
 ex = read_xpt("./sdtm/ex.xpt")
 sv = read_xpt("./sdtm/sv.xpt")
 mh = read_xpt("./sdtm/mh.xpt")
@@ -61,40 +60,18 @@ adsl <- adsl %>%
 
 # Deriving TRTEDT from ex
 
-# slice and by group
-
 ex <- ex %>%
-  select(USUBJID, EXENDTC)
-
-USUBJID = vector("character", 0)
-EXENDTC = vector("character", 0)
-
-for(i in 1:nrow(ex))
-{
-  if(i == 1)
-  {
-    subject = ex[1, 1]
-    USUBJID = c(subject)
-  }
-
-  if(ex[i, 1] != subject)
-  {
-    EXENDTC = c(EXENDTC, ex[i - 1, 2])
-    subject = ex[i, 1]
-    USUBJID = c(USUBJID, subject)
-  }
-}
-
-EXENDTC = c(EXENDTC, ex[nrow(ex), 2])
-
-USUBJID <- paste(USUBJID)
-EXENDTC <- paste(EXENDTC)
-
-ex_adsl <- cbind(USUBJID, EXENDTC)
+  derive_var_extreme_flag(
+    by_vars = vars(USUBJID),
+    order = vars(EXENDTC),
+    new_var = LAST_SUBJECT_FL,
+    mode = "last"
+  )
 
 adsl <- adsl %>%
   derive_vars_merged(
-    dataset_add = as.data.frame(ex_adsl),
+    dataset_add = ex,
+    filter_add = (LAST_SUBJECT_FL == 'Y'),
     new_vars = vars(TRTEDT = EXENDTC),
     order = vars(EXENDTC),
     mode = "first",
@@ -115,128 +92,33 @@ adsl <- adsl %>%
     order = vars(SVSTDTC),
     mode = "first",
     by_vars = vars(STUDYID, USUBJID)
-  )
-
-# Creating sv variables to add to the adsl
-
-sv <- sv %>%
-  mutate(COMP16FL = case_when(VISITNUM == 10 & VISITDY >= 70 ~ 'Y',
-                              TRUE ~ 'N'),
-         COMP24FL = case_when(VISITNUM == 12 & VISITDY >= 84 ~ 'Y',
-                              TRUE ~ 'N'),
-         COMP8FL = case_when(VISITNUM == 8 & VISITDY >= 56 ~ 'Y',
-                             TRUE ~ 'N'))
-
-# Extracting relevant sv variables
-
-sv_extract <- sv %>%
-  select(USUBJID, COMP16FL, COMP24FL, COMP8FL)
-
-# Initializing columns to add to the adsl
-
-USUBJID = vector("character", 0)
-COMP16FL = vector("character", 0)
-COMP24FL = vector("character", 0)
-COMP8FL = vector("character", 0)
-
-# The Boolean flags ensure that no more than 1 record is added for a subject
-
-COMP16FL_b = FALSE
-COMP24FL_b = FALSE
-COMP8FL_b = FALSE
-
-# This nested loop goes through every element in the sv data set and extract relevant data
-# i is row and j is column
-
-for(i in 1:nrow(sv_extract))
-{
-  for(j in 1:ncol(sv_extract))
-  {
-    if(i == 1 & j == 1)
-    {
-      subject = sv_extract[i, j]
-      USUBJID <- c(subject)
-
-      COMP16FL_b = FALSE
-      COMP24FL_b = FALSE
-      COMP8FL_b = FALSE
-    }
-
-    if(j == 1 & sv_extract[i, j] != subject)
-    {
-      if(COMP16FL_b == FALSE)
-      {
-        COMP16FL <- c(COMP16FL, 'N')
-      }
-
-      if(COMP24FL_b == FALSE)
-      {
-        COMP24FL <- c(COMP24FL, 'N')
-      }
-
-      if(COMP8FL_b == FALSE)
-      {
-        COMP8FL <- c(COMP8FL, 'N')
-      }
-
-      subject = sv_extract[i, j]
-      USUBJID = c(USUBJID, subject)
-
-      COMP16FL_b = FALSE
-      COMP24FL_b = FALSE
-      COMP8FL_b = FALSE
-    }
-
-    if(sv_extract[i, 2] == 'Y' & COMP16FL_b == FALSE)
-    {
-      COMP16FL <- c(COMP16FL, 'Y')
-      COMP16FL_b = TRUE
-    }
-
-    if(sv_extract[i, 3] == 'Y' & COMP24FL_b == FALSE)
-    {
-      COMP24FL <- c(COMP24FL, 'Y')
-      COMP24FL_b = TRUE
-    }
-
-    if(sv_extract[i, 4] == 'Y' & COMP8FL_b == FALSE)
-    {
-      COMP8FL <- c(COMP8FL, 'Y')
-      COMP8FL_b = TRUE
-    }
-  }
-}
-
-if(COMP16FL_b == FALSE)
-{
-  COMP16FL <- c(COMP16FL, 'N')
-}
-
-if(COMP24FL_b == FALSE)
-{
-  COMP24FL <- c(COMP24FL, 'N')
-}
-
-if(COMP8FL_b == FALSE)
-{
-  COMP8FL <- c(COMP8FL, 'N')
-}
-
-# Converting lists in to characters because the adsl columns are characters
-
-USUBJID <- paste(USUBJID)
-
-# Creating the data set to merge with the adsl
-
-sv_adsl <- cbind(USUBJID, COMP16FL, COMP24FL, COMP8FL)
-
-adsl <- adsl %>%
-  derive_vars_merged(
-    dataset_add = as.data.frame(sv_adsl),
-    new_vars = vars(COMP16FL, COMP24FL, COMP8FL),
-    order = vars(COMP16FL, COMP24FL, COMP8FL),
-    mode = 'first',
-    by_vars = vars(USUBJID)
+  ) %>%
+  derive_var_merged_exist_flag(
+    dataset_add = sv,
+    by_vars = vars(STUDYID, USUBJID),
+    new_var = COMP16FL,
+    condition = (VISITNUM == 10 & VISITDY >= 70),
+    true_value = 'Y',
+    false_value = 'N',
+    missing_value = NA_character_
+  ) %>%
+  derive_var_merged_exist_flag(
+    dataset_add = sv,
+    by_vars = vars(STUDYID, USUBJID),
+    new_var = COMP24FL,
+    condition = (VISITNUM == 12 & VISITDY >= 84),
+    true_value = 'Y',
+    false_value = 'N',
+    missing_value = NA_character_
+  ) %>%
+  derive_var_merged_exist_flag(
+    dataset_add = sv,
+    by_vars = vars(STUDYID, USUBJID),
+    new_var = COMP8FL,
+    condition = (VISITNUM == 8 & VISITDY >= 56),
+    true_value = 'Y',
+    false_value = 'N',
+    missing_value = NA_character_
   ) %>% # Deriving DISONSDT from mh
   derive_vars_merged(
     dataset_add = mh,
