@@ -169,90 +169,24 @@ adsl <- adsl %>%
     order = vars(MMSETOT),
     mode = 'first',
     by_vars = vars(USUBJID)
-  )
-
-qs <- qs %>%
-  select(USUBJID, QSCAT, VISITNUM)
-
-USUBJID = vector("character", 0)
-flag_ADASCog = vector("character", 0)
-flag_CIBIC = vector("character", 0)
-
-is_ADASCog = FALSE
-is_CIBIC = FALSE
-
-for(i in 1:nrow(qs))
-{
-  if(i == 1)
-  {
-    subject = qs[1, 1]
-    USUBJID = c(subject)
-  }
-
-  if(qs[i, 3] == "ALZHEIMER'S DISEASE ASSESSMENT SCALE" & qs[i, 3] > 3 & is_ADASCog == FALSE)
-  {
-    flag_ADASCog = c(flag_ADASCog, 'Y')
-    is_ADASCog = TRUE
-  }
-
-  if(qs[i, 3] == "CLINICIAN'S INTERVIEW-BASED IMPRESSION OF CHANGE (CIBIC+)" & qs[i, 3] > 3 & is_CIBIC == FALSE)
-  {
-    flag_CIBIC = c(flag_CIBIC, 'Y')
-    is_CIBIC = TRUE
-  }
-
-  if(qs[i, 1] != subject)
-  {
-    subject = qs[i, 1]
-    USUBJID = c(USUBJID, subject)
-
-    if(is_ADASCog == TRUE)
-    {
-      is_ADASCog = FALSE
-    }
-    else
-    {
-      flag_ADASCog = c(flag_ADASCog, 'N')
-    }
-
-    if(is_CIBIC == TRUE)
-    {
-      is_CBIC = FALSE
-    }
-    else
-    {
-      flag_CIBIC = c(flag_CIBIC, 'N')
-    }
-  }
-}
-
-if(is_ADASCog == TRUE)
-{
-  is_ADASCog = FALSE
-} else
-{
-  flag_ADASCog = c(flag_ADASCog, 'N')
-}
-
-if(is_CIBIC == TRUE)
-{
-  is_CBIC = FALSE
-} else
-{
-  flag_CIBIC = c(flag_CIBIC, 'N')
-}
-
-USUBJID <- paste(USUBJID)
-
-qs_adsl <- cbind(USUBJID, flag_ADASCog, flag_CIBIC)
-
-adsl <- adsl %>%
-  derive_vars_merged(
-    dataset_add = as.data.frame(qs_adsl),
-    new_vars = vars(flag_ADASCog, flag_CIBIC),
-    order = vars(flag_ADASCog, flag_CIBIC),
-    mode = 'first',
-    by_vars = vars(USUBJID)
+  ) %>%
+  derive_var_merged_exist_flag(
+    dataset_add = qs,
+    by_vars = vars(STUDYID, USUBJID),
+    new_var = flag_ADASCog,
+    condition = (QSCAT == "ALZHEIMER'S DISEASE ASSESSMENT SCALE" & VISITNUM > 3),
+    true_value = 'Y',
+    false_value = 'N',
+    missing_value = NA_character_
+  ) %>%
+  derive_var_merged_exist_flag(
+    dataset_add = qs,
+    by_vars = vars(STUDYID, USUBJID),
+    new_var = flag_CIBIC,
+    condition = (QSCAT == "CLINICIAN'S INTERVIEW-BASED IMPRESSION OF CHANGE (CIBIC+)" & VISITNUM > 3),
+    true_value = 'Y',
+    false_value = 'N',
+    missing_value = NA_character_
   ) %>% # Deriving VISIT4DT from sv to derive CUMDOSE
   derive_vars_merged(
     dataset_add = sv,
